@@ -1,0 +1,335 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.*;
+import java.util.List;
+
+
+class Flight {
+    String id, flightNo, origin, destination, departure;
+    int capacity, booked;
+    List<String> crew;
+
+    Flight(String flightNo, String origin, String destination, String departure, int capacity) {
+        this.id = UUID.randomUUID().toString();
+        this.flightNo = flightNo;
+        this.origin = origin;
+        this.destination = destination;
+        this.departure = departure;
+        this.capacity = capacity;
+        this.booked = 0;
+        this.crew = new ArrayList<>();
+    }
+
+    public String toString() {
+        return String.format("[%s] %s -> %s | dep: %s | cap: %d | booked: %d | id: %s",
+                flightNo, origin, destination, departure, capacity, booked, id);
+    }
+}
+
+class Passenger {
+    String id, name, email;
+    Passenger(String name, String email) {
+        this.id = UUID.randomUUID().toString();
+        this.name = name;
+        this.email = email;
+    }
+
+    public String toString() {
+        return String.format("%s (%s) - id: %s", name, email, id);
+    }
+}
+
+class Booking {
+    String id, flightId, passengerId, createdAt;
+    int seatNo;
+
+    Booking(String flightId, String passengerId, int seatNo) {
+        this.id = UUID.randomUUID().toString();
+        this.flightId = flightId;
+        this.passengerId = passengerId;
+        this.seatNo = seatNo;
+        this.createdAt = new Date().toString();
+    }
+
+    public String toString(AirlineSystem system) {
+        Flight f = system.flights.get(flightId);
+        Passenger p = system.passengers.get(passengerId);
+        return String.format("Booking %s: %s -> %s | seat %d | %s",
+                id,
+                p != null ? p.name : "UNKNOWN",
+                f != null ? f.flightNo : "UNKNOWN",
+                seatNo,
+                createdAt);
+    }
+}
+
+class AirlineSystem {
+    Map<String, Flight> flights = new HashMap<>();
+    Map<String, Passenger> passengers = new HashMap<>();
+    Map<String, Booking> bookings = new HashMap<>();
+
+    Flight addFlight(String flightNo, String origin, String destination, String departure, int capacity) {
+        Flight f = new Flight(flightNo, origin, destination, departure, capacity);
+        flights.put(f.id, f);
+        return f;
+    }
+
+    Passenger addPassenger(String name, String email) {
+        Passenger p = new Passenger(name, email);
+        passengers.put(p.id, p);
+        return p;
+    }
+
+    Booking bookTicket(String flightId, String passengerId) throws Exception {
+        Flight f = flights.get(flightId);
+        Passenger p = passengers.get(passengerId);
+        if (f == null || p == null) throw new Exception("Invalid flight or passenger");
+        if (f.booked >= f.capacity) throw new Exception("Flight is full");
+
+        int seatNo = f.booked + 1;
+        Booking b = new Booking(flightId, passengerId, seatNo);
+        bookings.put(b.id, b);
+        f.booked++;
+        return b;
+    }
+
+    boolean cancelBooking(String bookingId) {
+        Booking b = bookings.get(bookingId);
+        if (b == null) return false;
+        Flight f = flights.get(b.flightId);
+        if (f != null && f.booked > 0) f.booked--;
+        bookings.remove(bookingId);
+        return true;
+    }
+}
+
+class UserAuth {
+    static Map<String, String> users = new HashMap<>();
+
+    static boolean login(String username, String password) {
+        return users.containsKey(username) && users.get(username).equals(password);
+    }
+
+    static boolean signup(String username, String password) {
+        if (users.containsKey(username)) return false;
+        users.put(username, password);
+        return true;
+    }
+}
+
+class LoginPage extends JFrame {
+    JTextField usernameField;
+    JPasswordField passwordField;
+    JButton loginBtn, signupBtn;
+    JLabel title;
+
+    LoginPage() {
+        setTitle("✈️ Airline Management System - Login");
+        setSize(400, 300);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+        setLayout(new BorderLayout());
+        getContentPane().setBackground(new Color(240, 248, 255));
+
+        title = new JLabel("Welcome to Airline System", SwingConstants.CENTER);
+        title.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        title.setForeground(new Color(25, 25, 112));
+        add(title, BorderLayout.NORTH);
+
+        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 50, 20, 50));
+        panel.setBackground(new Color(240, 248, 255));
+
+        panel.add(new JLabel("Username:"));
+        usernameField = new JTextField();
+        panel.add(usernameField);
+
+        panel.add(new JLabel("Password:"));
+        passwordField = new JPasswordField();
+        panel.add(passwordField);
+
+        loginBtn = new JButton("Login");
+        signupBtn = new JButton("Sign Up");
+        loginBtn.setBackground(new Color(65, 105, 225));
+        loginBtn.setForeground(Color.WHITE);
+        signupBtn.setBackground(new Color(100, 149, 237));
+        signupBtn.setForeground(Color.WHITE);
+
+        panel.add(loginBtn);
+        panel.add(signupBtn);
+        add(panel, BorderLayout.CENTER);
+
+        loginBtn.addActionListener(e -> loginAction());
+        signupBtn.addActionListener(e -> new SignupPage(this));
+    }
+
+    private void loginAction() {
+        String user = usernameField.getText();
+        String pass = new String(passwordField.getPassword());
+
+        if (UserAuth.login(user, pass)) {
+            JOptionPane.showMessageDialog(this, "Login Successful!");
+            dispose();
+            new AirlineGUI().setVisible(true);
+        } else {
+            JOptionPane.showMessageDialog(this, "Invalid Credentials!");
+        }
+    }
+}
+
+class SignupPage extends JFrame {
+    JTextField usernameField;
+    JPasswordField passwordField;
+    JButton signupBtn;
+
+    SignupPage(JFrame parent) {
+        setTitle("Create Account");
+        setSize(350, 200);
+        setLocationRelativeTo(parent);
+        setLayout(new GridLayout(3, 2, 10, 10));
+        getContentPane().setBackground(new Color(248, 248, 255));
+
+        add(new JLabel("New Username:"));
+        usernameField = new JTextField();
+        add(usernameField);
+
+        add(new JLabel("New Password:"));
+        passwordField = new JPasswordField();
+        add(passwordField);
+
+        signupBtn = new JButton("Sign Up");
+        signupBtn.setBackground(new Color(72, 209, 204));
+        signupBtn.setForeground(Color.WHITE);
+        add(new JLabel(""));
+        add(signupBtn);
+
+        signupBtn.addActionListener(e -> {
+            String user = usernameField.getText();
+            String pass = new String(passwordField.getPassword());
+            if (UserAuth.signup(user, pass)) {
+                JOptionPane.showMessageDialog(this, "Signup Successful! You can now log in.");
+                dispose();
+            } else {
+                JOptionPane.showMessageDialog(this, "Username already exists!");
+            }
+        });
+
+        setVisible(true);
+    }
+}
+
+public class AirlineGUI extends JFrame {
+    AirlineSystem system;
+    JTextArea outputArea;
+
+    public AirlineGUI() {
+        system = new AirlineSystem();
+        preloadData();
+
+        setTitle("✈️ Airline Management Dashboard");
+        setSize(900, 550);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setLayout(new BorderLayout());
+        setLocationRelativeTo(null);
+
+        JPanel leftPanel = new JPanel();
+        leftPanel.setLayout(new GridLayout(8, 1, 8, 8));
+        leftPanel.setBackground(new Color(25, 25, 112));
+
+        String[] btnLabels = {"List Flights", "Add Flight", "List Passengers", "Add Passenger", "Book Ticket", "Cancel Booking", "List Bookings", "Exit"};
+        JButton[] buttons = new JButton[btnLabels.length];
+
+        for (int i = 0; i < btnLabels.length; i++) {
+            buttons[i] = new JButton(btnLabels[i]);
+            buttons[i].setBackground(new Color(100, 149, 237));
+            buttons[i].setForeground(Color.WHITE);
+            buttons[i].setFont(new Font("Segoe UI", Font.BOLD, 14));
+            leftPanel.add(buttons[i]);
+        }
+        add(leftPanel, BorderLayout.WEST);
+
+        outputArea = new JTextArea();
+        outputArea.setEditable(false);
+        outputArea.setFont(new Font("Consolas", Font.PLAIN, 13));
+        outputArea.setBackground(new Color(248, 248, 255));
+        add(new JScrollPane(outputArea), BorderLayout.CENTER);
+
+        // Button actions
+        buttons[0].addActionListener(e -> listFlights());
+        buttons[1].addActionListener(e -> addFlightDialog());
+        buttons[2].addActionListener(e -> listPassengers());
+        buttons[3].addActionListener(e -> addPassengerDialog());
+        buttons[4].addActionListener(e -> bookTicketDialog());
+        buttons[5].addActionListener(e -> cancelBookingDialog());
+        buttons[6].addActionListener(e -> listBookings());
+        buttons[7].addActionListener(e -> System.exit(0));
+    }
+
+    private void preloadData() {
+        system.addFlight("AI101", "Delhi", "Mumbai", "06-10-2025 09:00 AM", 120);
+        system.addFlight("6E202", "Mumbai", "Bengaluru", "06-10-2025 11:30 AM", 150);
+        system.addPassenger("Suyash Tarsoliya", "suyash64@gmail.com");
+        system.addPassenger("Sudhanshu Mall", "sudhanshu18@gmail.com");
+    }
+
+    private void listFlights() {
+        outputArea.setText("");
+        for (Flight f : system.flights.values()) outputArea.append(f + "\n");
+    }
+
+    private void listPassengers() {
+        outputArea.setText("");
+        for (Passenger p : system.passengers.values()) outputArea.append(p + "\n");
+    }
+
+    private void listBookings() {
+        outputArea.setText("");
+        for (Booking b : system.bookings.values()) outputArea.append(b.toString(system) + "\n");
+    }
+
+    private void addFlightDialog() {
+        JTextField no = new JTextField(), origin = new JTextField(), dest = new JTextField(), dep = new JTextField(), cap = new JTextField();
+        Object[] fields = {"Flight No:", no, "Origin:", origin, "Destination:", dest, "Departure:", dep, "Capacity:", cap};
+        int opt = JOptionPane.showConfirmDialog(this, fields, "Add Flight", JOptionPane.OK_CANCEL_OPTION);
+        if (opt == JOptionPane.OK_OPTION) {
+            try {
+                Flight f = system.addFlight(no.getText(), origin.getText(), dest.getText(), dep.getText(), Integer.parseInt(cap.getText()));
+                outputArea.setText("Added flight:\n" + f);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
+            }
+        }
+    }
+
+    private void addPassengerDialog() {
+        JTextField name = new JTextField(), email = new JTextField();
+        Object[] fields = {"Name:", name, "Email:", email};
+        int opt = JOptionPane.showConfirmDialog(this, fields, "Add Passenger", JOptionPane.OK_CANCEL_OPTION);
+        if (opt == JOptionPane.OK_OPTION) {
+            Passenger p = system.addPassenger(name.getText(), email.getText());
+            outputArea.setText("Added passenger:\n" + p);
+        }
+    }
+
+    private void bookTicketDialog() {
+        String fid = JOptionPane.showInputDialog(this, "Enter Flight ID:");
+        String pid = JOptionPane.showInputDialog(this, "Enter Passenger ID:");
+        try {
+            Booking b = system.bookTicket(fid, pid);
+            outputArea.setText("Booked:\n" + b.toString(system));
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
+        }
+    }
+
+    private void cancelBookingDialog() {
+        String bid = JOptionPane.showInputDialog(this, "Enter Booking ID:");
+        if (system.cancelBooking(bid)) outputArea.setText("Booking cancelled: " + bid);
+        else JOptionPane.showMessageDialog(this, "Booking not found!");
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> new LoginPage().setVisible(true));
+    }
+}
